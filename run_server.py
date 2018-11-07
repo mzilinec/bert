@@ -96,16 +96,52 @@ class BertWrapper:
 
         possible = np.matmul(start_probs.T, end_probs)
 
+        values = {}
+
         for i in range(possible.shape[0]):
             for j in range(possible.shape[1]):
                 if i > j:
                     possible[i, j] = 0.0
+                else:
+                    values[(i, j)] = possible[i, j]
+
+        # np.set_printoptions(threshold=np.inf)
+        best = sorted(values.items(), key=lambda x: x[1], reverse=True)[:10]
 
         max_prob = np.max(possible)
         start, end = np.unravel_index(np.argmax(possible, axis=None), possible.shape)
         print("Max prob:", max_prob, "@", (start, end))
         print(c[start:end])
-        return max_prob, " ".join(c[start:end])
+
+        print("Candidates:")
+        for a, b in best:
+            print(c[a[0]:a[1]])
+
+        spans = []
+        span_counts = {}
+
+        for (start, end), score in best:
+            for (span_start, span_end) in spans:
+                if start <= span_end and end >= span_start:
+                    spans.remove((span_start, span_end))
+
+                    new_span = (min(start, span_start), max(end, span_end))
+                    spans.append(new_span)
+
+                    span_counts[new_span] = span_counts[(span_start, span_end)] + 1
+                    break
+            else:
+                spans.append((start, end))
+                span_counts[(start, end)] = 1
+
+        spans = sorted(spans, key=lambda x: span_counts[x], reverse=True)
+        print("Final candidates:")
+        for start, end in spans:
+            print(c[start:end], ":", span_counts[(start, end)])
+
+        # return max_prob, " ".join(c[start:end])
+        start, end = spans[0]
+        return span_counts[(start, end)] / 10, " ".join(c[start:end])
 
 
 app = Flask(__name__)
