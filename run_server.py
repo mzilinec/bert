@@ -1,5 +1,6 @@
 import argparse
 import os
+from functools import reduce
 
 import numpy as np
 import tensorflow as tf
@@ -52,6 +53,12 @@ class BertWrapper:
         self.saver = tf.train.Saver()
         self.session = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
         self.saver.restore(self.session, os.path.join(args.model_dir, args.init_checkpoint))
+
+    def _fix_subwords(self, tokens):
+        """Reconstructs original words from wordpiece tokenizer's subword tokens."""
+        if tokens is None:
+            return []
+        return reduce(lambda l, r: l + r[2:] if r.startswith("##") else l + " " + r, tokens)
 
     def predict(self, question, context):
 
@@ -141,7 +148,7 @@ class BertWrapper:
 
         # return max_prob, " ".join(c[start:end])
         start, end = spans[0]
-        return span_counts[(start, end)] / 10, " ".join(c[start:end])
+        return span_counts[(start, end)] / 10, self._fix_subwords(c[start:end])
 
 
 app = Flask(__name__)
@@ -158,10 +165,10 @@ def answer():
 
 
 def test():
-    bert.predict("How many people live in Prague?", "1500000 people live in Prague.")
+    print("Output:", bert.predict("How many people live in Prague?", "1500000 people live in Prague."))
     q = "Which NFL team represented the NFC at Super Bowl 50?"
     c = "Super Bowl 50 was an American football game to determine the champion of the National Football League (NFL) for the 2015 season. The American Football Conference (AFC) champion Denver Broncos defeated the National Football Conference (NFC) champion Carolina Panthers 24\u201310 to earn their third Super Bowl title. The game was played on February 7, 2016, at Levi's Stadium in the San Francisco Bay Area at Santa Clara, California. As this was the 50th Super Bowl, the league emphasized the \"golden anniversary\" with various gold-themed initiatives, as well as temporarily suspending the tradition of naming each Super Bowl game with Roman numerals (under which the game would have been known as \"Super Bowl L\"), so that the logo could prominently feature the Arabic numerals 50."
-    bert.predict(q, c)
+    print("Output:", bert.predict(q, c))
 
 
 if __name__ == "__main__":
